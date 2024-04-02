@@ -747,6 +747,16 @@ public:
      *
      */
     const MessageQueue &GetCachedResponses(void) const { return mResponsesQueue.GetResponses(); }
+    
+    
+    /**
+     * This method evicts a message from the pending requests queue
+     *
+     * @returns  Error code as kErrorNone on successful eviction
+     *           Error code as kErrorNotFound if eviction failed
+     *
+     */
+    otError EvictMessage(void);
 
 protected:
     /**

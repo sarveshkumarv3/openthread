@@ -553,6 +553,28 @@ exit:
     return messageCopy;
 }
 
+otError CoapBase::EvictMessage()
+{
+    otError error = kErrorNone;
+    Message *storedRequstMessage;
+    
+    otMessageQueueInfo pendingRequestsInfo;
+    mPendingRequests.GetInfo(pendingRequestsInfo);
+    
+    // If pending requeusts queue is empty return as not found,
+    // else evict the message at the head of the pending requeusts queue
+    
+    VerifyOrExit (pendingRequestsInfo.mNumMessages>0, error = kErrorNotFound);
+    
+    storedRequstMessage = mPendingRequests.GetHead() ;
+    
+    VerifyOrExit (storedRequstMessage != nullptr, error = kErrorNotFound);
+    LogInfo("Evicting message from head of CoAP pending requests queue ");
+    DequeueMessage(*storedRequstMessage);
+exit:
+    return error;
+}
+
 void CoapBase::DequeueMessage(Message &aMessage)
 {
     mPendingRequests.Dequeue(aMessage);
