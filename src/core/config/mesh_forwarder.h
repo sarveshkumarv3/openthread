@@ -118,9 +118,15 @@
  * The entry in list is used to track whether an earlier fragment of same message was dropped by the router and if so
  * the next fragments are also dropped. The entry is removed once last fragment is processed or after the retain time
  * specified by this config parameter expires.
+ *
+ * The retain time is restarted on every fragment of the message, so it only needs to cover the longest gap between two
+ * fragments that the destination still accepts, i.e., the reassembly timeout (plus one second to account for the one
+ * second granularity of the time ticker). Entries of messages whose last fragment never reaches the router (for
+ * example, lost on the previous hop) would otherwise occupy the small list for minutes.
  */
 #ifndef OPENTHREAD_CONFIG_DELAY_AWARE_QUEUE_MANAGEMENT_FRAG_TAG_RETAIN_TIME
-#define OPENTHREAD_CONFIG_DELAY_AWARE_QUEUE_MANAGEMENT_FRAG_TAG_RETAIN_TIME (4 * 60) // 4 minutes
+#define OPENTHREAD_CONFIG_DELAY_AWARE_QUEUE_MANAGEMENT_FRAG_TAG_RETAIN_TIME \
+    (OPENTHREAD_CONFIG_6LOWPAN_REASSEMBLY_TIMEOUT + 1)
 #endif
 
 /**

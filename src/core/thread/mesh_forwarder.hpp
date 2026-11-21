@@ -59,6 +59,8 @@
 
 namespace ot {
 
+class UnitTester;
+
 namespace Mle {
 class DiscoverScanner;
 }
@@ -85,6 +87,7 @@ class MeshForwarder : public InstanceLocator, private NonCopyable
     friend class Mle::DiscoverScanner;
     friend class TimeTicker;
     friend class ot::MessagePool;
+    friend class ot::UnitTester;
 
 public:
     /**
