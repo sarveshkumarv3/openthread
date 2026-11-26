@@ -76,6 +76,10 @@ MeshForwarder::MeshForwarder(Instance &aInstance)
     , mEnabled(false)
     , mTxPaused(false)
     , mSendBusy(false)
+#if OPENTHREAD_CONFIG_MLE_FAST_ATTACH_ENABLE
+    , mRxOnHeld(false)
+    , mRxOnHoldTimer(aInstance)
+#endif
 #if OPENTHREAD_FTD && OPENTHREAD_CONFIG_MAC_COLLISION_AVOIDANCE_DELAY_ENABLE
     , mDelayNextTx(false)
     , mTxDelayTimer(aInstance)
@@ -117,6 +121,11 @@ void MeshForwarder::Stop(void)
     Get<SupervisionListener>().Stop();
     mSleepMode = kNonSleepy;
     ClearAllSleepSuspendRequesters();
+
+#if OPENTHREAD_CONFIG_MLE_FAST_ATTACH_ENABLE
+    mRxOnHeld = false;
+    mRxOnHoldTimer.Stop();
+#endif
 
     Get<TimeTicker>().UnregisterReceiver(TimeTicker::kMeshForwarder);
     Get<Mle::DiscoverScanner>().Stop();
@@ -857,6 +866,18 @@ void MeshForwarder::SetSleepMode(SleepMode aMode)
     VerifyOrExit(mSleepMode != aMode);
 
     mSleepMode = aMode;
+
+#if OPENTHREAD_CONFIG_MLE_FAST_ATTACH_ENABLE
+    // The rx-on hold applies only to a sleepy device. It survives the
+    // brief `kDetachedSleepy` while attach completes, but ends when
+    // the device is no longer sleepy (e.g., Thread is stopped).
+    if (aMode == kNonSleepy)
+    {
+        mRxOnHeld = false;
+        mRxOnHoldTimer.Stop();
+    }
+#endif
+
     UpdateSleepState();
 
 exit:
@@ -885,6 +906,21 @@ exit:
     return;
 }
 
+#if OPENTHREAD_CONFIG_MLE_FAST_ATTACH_ENABLE
+void MeshForwarder::HoldRxOnWhenIdle(uint32_t aDuration)
+{
+    mRxOnHeld = true;
+    mRxOnHoldTimer.Start(aDuration);
+    UpdateSleepState();
+}
+
+void MeshForwarder::HandleRxOnHoldTimer(void)
+{
+    mRxOnHeld = false;
+    UpdateSleepState();
+}
+#endif
+
 void MeshForwarder::UpdateSleepState(void)
 {
     VerifyOrExit(mEnabled);
@@ -904,7 +940,11 @@ void MeshForwarder::UpdateSleepState(void)
         break;
 
     case kSleepy:
+#if OPENTHREAD_CONFIG_MLE_FAST_ATTACH_ENABLE
+        Get<Mac::Mac>().SetRxOnWhenIdle(IsSleepModeSuspended() || mRxOnHeld);
+#else
         Get<Mac::Mac>().SetRxOnWhenIdle(IsSleepModeSuspended());
+#endif
         Get<SupervisionListener>().Start();
 
         if (IsSleepModeSuspended())

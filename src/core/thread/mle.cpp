@@ -1671,6 +1671,15 @@ void Mle::HandleUdpReceive(Message &aMessage, const Ip6::MessageInfo &aMessageIn
     VerifyOrExit(aMessageInfo.GetPeerAddr().IsLinkLocalUnicast());
     VerifyOrExit(aMessageInfo.GetSockAddr().IsLinkLocalUnicastOrMulticast());
 
+#if OPENTHREAD_CONFIG_MLE_FAST_ATTACH_ENABLE
+    // While the radio is held on for a sleepy device, ignore multicast
+    // MLE messages, as the device would not receive them while asleep.
+    // Processing one from the selected parent would advance its MLE
+    // frame counter past the Child ID Response, which is delivered
+    // later by polling, and get that response rejected as a duplicate.
+    VerifyOrExit(!(Get<MeshForwarder>().IsRxOnWhenIdleHeld() && aMessageInfo.GetSockAddr().IsMulticast()));
+#endif
+
     VerifyOrExit(aMessageInfo.GetHopLimit() == kMleHopLimit, error = kErrorParse);
 
     SuccessOrExit(error = aMessage.ReadAtAndAdvanceOffset(securitySuite));
@@ -5544,6 +5553,18 @@ void Mle::Attacher::HandleParentResponse(RxInfo &aRxInfo)
     if (ShouldUseFastAttach() && mState == kStateParentRequest &&
         mParentCandidate.GetTwoWayLinkQuality() == kLinkQuality3 && HasAcceptableParentCandidate())
     {
+        // A sleepy device keeps its radio on until the Parent Request
+        // wait time would have expired, as in a legacy attach, so that
+        // late Parent Responses from other routers are ACKed while it
+        // polls for the Child ID Response.
+
+        TimeMilli now = TimerMilli::GetNow();
+
+        if (!Get<Mle>().IsRxOnWhenIdle() && mTimer.IsRunning() && (now < mTimer.GetFireTime()))
+        {
+            Get<MeshForwarder>().HoldRxOnWhenIdle(mTimer.GetFireTime() - now);
+        }
+
         mTimer.Start(0);
     }
 #endif
